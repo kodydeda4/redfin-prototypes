@@ -214,7 +214,7 @@ function promptFor(path: string) {
   const params = new URLSearchParams(window.location.search)
   const tile = params.get("tile")
   const lines = [
-    `I want to make changes to the ${feature.title} feature (${variant.title} version) in redfin-web-ui-experiments.`,
+    `I want to make changes to the ${feature.title} feature (${variant.title} version) in redfin-prototypes.`,
     "",
     `- Route: ${variant.href} (src/app${variant.href})`,
     `- Code: src/experiments/${folder}/`,
@@ -284,7 +284,7 @@ export function StatusBadge({ path, className }: { path: string; className?: str
   )
 }
 
-const REPO_URL = "https://github.com/kodydeda4/redfin"
+const REPO_URL = "https://github.com/kodydeda4/redfin-prototypes"
 
 /** App icon + wordmark on the same floating pill as the bottom-bar toggles; links to the repo. */
 function Logo() {
@@ -299,7 +299,7 @@ function Logo() {
       {/* The Redfin icon carries its own rounded shape and margin, so it isn't clipped here. */}
       <Image src="/redfin-logo.png" alt="" width={32} height={32} preload className="size-8" />
       {/* Narrower windows show just the icon so the header doesn't overflow. */}
-      <span className="hidden text-sm font-medium xl:inline">Redfin UI Experiments</span>
+      <span className="hidden text-sm font-medium xl:inline">Redfin Prototypes</span>
     </a>
   )
 }

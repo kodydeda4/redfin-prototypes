@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "redfin-web-ui",
+      "name": "redfin-prototypes",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "3100"],
       "port": 3100

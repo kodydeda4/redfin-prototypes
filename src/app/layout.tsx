@@ -17,10 +17,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Redfin UI Experiments",
-  description: "A playground for 3D UI experiments.",
+  title: "Redfin Prototypes",
+  description: "Prototypes for the Redfin Jellyfin music player.",
   // "Add to Home Screen" on iOS opens full screen, without Safari's toolbars.
-  appleWebApp: { capable: true, title: "Redfin UI", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Redfin", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
