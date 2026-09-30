@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useRef, useState } from "react"
 import Image from "next/image"
-import { EyeIcon, EyeOffIcon, LogOutIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon } from "lucide-react"
 
 import {
   AlertDialog,
@@ -18,166 +18,49 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
+import { authenticate, saveSession, type Session } from "@/lib/jellyfin"
 
 // Mirrors `AuthenticationFeature` in redfin-swift: server URL + username + password, "Connect",
 // and a "Couldn't Sign In" alert on failure.
 
-const SESSION_KEY = "redfin:jellyfin-session"
-const DEVICE_ID_KEY = "redfin:device-id"
-
-type Session = {
-  serverURL: string
-  serverName?: string
-  userID: string
-  username: string
-  accessToken: string
-}
-
-// ---- Jellyfin --------------------------------------------------------------
-
-function deviceID() {
-  let id = localStorage.getItem(DEVICE_ID_KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem(DEVICE_ID_KEY, id)
-  }
-  return id
-}
-
-/** Jellyfin identifies every client through this header, signed in or not. */
-function authorization(token?: string) {
-  const fields = { Client: "Redfin", Device: "Web", DeviceId: deviceID(), Version: "1.0.0", Token: token }
-  const pairs = Object.entries(fields)
-    .filter(([, v]) => v)
-    .map(([k, v]) => `${k}="${encodeURIComponent(v!)}"`)
-  return `MediaBrowser ${pairs.join(", ")}`
-}
-
-/** Accepts `jellyfin.example.com` as well as full URLs; drops any trailing slash. */
-function normalizeServerURL(raw: string): URL {
-  const trimmed = raw.trim()
-  const url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`)
-  url.pathname = url.pathname.replace(/\/+$/, "")
-  return url
-}
-
-async function authenticate(serverURL: string, username: string, password: string): Promise<Session> {
-  let base: URL
-  try {
-    base = normalizeServerURL(serverURL)
-  } catch {
-    throw new Error("The server URL isn't valid.")
-  }
-  const root = base.href.replace(/\/$/, "")
-
-  let response: Response
-  try {
-    response = await fetch(`${root}/Users/AuthenticateByName`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: authorization() },
-      body: JSON.stringify({ Username: username, Pw: password }),
-      // Small JSON payload — a request stalled this long has hung, not slowed.
-      signal: AbortSignal.timeout(15_000),
-    })
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "TimeoutError") {
-      throw new Error("The server took too long to respond.")
-    }
-    throw new Error("Couldn't reach the server. Check the URL and that it allows requests from this site.")
-  }
-
-  if (response.status === 401) throw new Error("The username or password is incorrect.")
-  if (!response.ok) throw new Error(`The server responded with an error (${response.status}).`)
-
-  const result = (await response.json()) as { AccessToken?: string; User?: { Id?: string; Name?: string } }
-  if (!result.AccessToken || !result.User?.Id) throw new Error("The server didn't return a session.")
-
-  // Best-effort, for the signed-in chrome: a server that doesn't answer this shouldn't fail sign-in.
-  const info = await fetch(`${root}/System/Info/Public`)
-    .then((r) => (r.ok ? (r.json() as Promise<{ ServerName?: string }>) : undefined))
-    .catch(() => undefined)
-
-  return {
-    serverURL: root,
-    serverName: info?.ServerName,
-    userID: result.User.Id,
-    username: result.User.Name ?? username,
-    accessToken: result.AccessToken,
-  }
-}
-
-async function signOut(session: Session) {
-  await fetch(`${session.serverURL}/Sessions/Logout`, {
-    method: "POST",
-    headers: { Authorization: authorization(session.accessToken) },
-  }).catch(() => {})
-}
-
-// The saved session lives in localStorage, so every device frame (and tab) shares one sign-in.
-const listeners = new Set<() => void>()
-
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  const onStorage = (e: StorageEvent) => e.key === SESSION_KEY && listener()
-  window.addEventListener("storage", onStorage)
-  return () => {
-    listeners.delete(listener)
-    window.removeEventListener("storage", onStorage)
-  }
-}
-
-function saveSession(session: Session | null) {
-  if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-  else localStorage.removeItem(SESSION_KEY)
-  listeners.forEach((l) => l())
-}
-
-function parseSession(raw: string | null): Session | null {
-  try {
-    return raw ? (JSON.parse(raw) as Session) : null
-  } catch {
-    return null
-  }
-}
-
-/** `undefined` until hydrated, so the server render doesn't flash the form for a signed-in user. */
-function useSession() {
-  const raw = useSyncExternalStore(
-    subscribe,
-    () => localStorage.getItem(SESSION_KEY),
-    () => undefined,
-  )
-  return useMemo(() => (raw === undefined ? undefined : parseSession(raw)), [raw])
-}
-
 // ---- Views -----------------------------------------------------------------
 
+// Always the sign-in screen, even when signed in, so it can be looked at any time. The current account
+// (and Sign Out) lives in the workbench's Preview State panel.
 export default function LiveAuthentication() {
-  const session = useSession()
-
-  const leave = () => {
-    if (session) void signOut(session)
-    saveSession(null)
-  }
-
   return (
     <div className="flex h-dvh w-full flex-col overflow-y-auto bg-background pt-(--safe-top) pb-(--safe-bottom)">
       <div className="mx-auto flex w-full max-w-[460px] flex-1 flex-col gap-8 p-6">
-        <Header />
-        {session === undefined ? null : session ? (
-          <SignedIn session={session} onSignOut={leave} />
-        ) : (
-          <SignInForm onSignIn={saveSession} />
-        )}
+        <SignInForm onSignIn={saveSession} />
       </div>
     </div>
   )
 }
 
-function Header() {
+/**
+ * The developer sign-in, from `.env.local` (like the Swift app's `developerValue`). `undefined` unless
+ * all three are set, which leaves the logo inert everywhere else.
+ */
+const developer =
+  process.env.NEXT_PUBLIC_DEV_JELLYFIN_SERVER_URL && process.env.NEXT_PUBLIC_DEV_JELLYFIN_USERNAME
+    ? {
+        serverURL: process.env.NEXT_PUBLIC_DEV_JELLYFIN_SERVER_URL,
+        username: process.env.NEXT_PUBLIC_DEV_JELLYFIN_USERNAME,
+        password: process.env.NEXT_PUBLIC_DEV_JELLYFIN_PASSWORD ?? "",
+      }
+    : undefined
+
+function Header({ onLogoClick }: { onLogoClick?: () => void }) {
+  const logo = <Image src="/redfin-logo.png" alt="" width={80} height={80} priority className="size-20" />
   return (
     <div className="flex flex-col items-center gap-2 pt-10 text-center">
-      <Image src="/redfin-logo.png" alt="" width={80} height={80} priority className="mb-1 size-20" />
+      {onLogoClick ? (
+        <button type="button" onClick={onLogoClick} aria-label="Fill developer sign-in" className="mb-1 rounded-[22%]">
+          {logo}
+        </button>
+      ) : (
+        <div className="mb-1">{logo}</div>
+      )}
       <h1 className="text-3xl font-bold tracking-tight">Redfin Music Player</h1>
       <p className="text-muted-foreground">Connect to your Jellyfin server to get started.</p>
     </div>
@@ -203,6 +86,8 @@ function SignInForm({ onSignIn }: { onSignIn: (session: Session) => void }) {
       onSignIn(await authenticate(serverURL, username.trim(), password))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      // The form stays up after signing in (it's the page's whole point), so stop the spinner either way.
       setIsLoading(false)
     }
   }
@@ -214,10 +99,21 @@ function SignInForm({ onSignIn }: { onSignIn: (session: Session) => void }) {
     next.current?.focus()
   }
 
+  /** Fills the developer sign-in, or clears the fields if they're already filled (the Swift toggle). */
+  const toggleDeveloper = () => {
+    if (!developer || isLoading) return
+    const fill = serverURL === ""
+    setServerURL(fill ? developer.serverURL : "")
+    setUsername(fill ? developer.username : "")
+    setPassword(fill ? developer.password : "")
+    setIsRevealed(false)
+  }
+
   const fieldClass = "h-11 rounded-xl px-3 text-base md:text-sm"
 
   return (
     <>
+      <Header onLogoClick={developer ? toggleDeveloper : undefined} />
       <form
         className="flex flex-col gap-8"
         onSubmit={(e) => {
@@ -308,21 +204,5 @@ function SignInForm({ onSignIn }: { onSignIn: (session: Session) => void }) {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
-}
-
-function SignedIn({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
-  return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1 rounded-xl border p-4 text-sm">
-        <span className="text-muted-foreground">Signed in as</span>
-        <span className="text-base font-semibold">{session.username}</span>
-        <span className="truncate text-muted-foreground">{session.serverName ?? session.serverURL}</span>
-      </div>
-      <Button variant="outline" size="lg" onClick={onSignOut} className="h-11 w-full rounded-full text-base font-semibold">
-        <LogOutIcon />
-        Sign Out
-      </Button>
-    </div>
   )
 }

@@ -1,6 +1,6 @@
 # Redfin UI Prototypes
 
-This is a web-app that allows me to explore ui layouts and ideas for the native app.
+This is a web-app that allows me to explore ui layouts and ideas for the native [Redfin music player app](https://github.com/kodydeda4/redfin).
 
 ```bash
 npm run dev

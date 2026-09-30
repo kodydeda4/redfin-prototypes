@@ -49,6 +49,9 @@
 }
 
 :root {
+  /* Tell the browser the theme, so anything it paints before our styles (the page canvas while a
+     frame loads, scrollbars, form controls) is the theme's color instead of a white flash. */
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -84,6 +87,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
