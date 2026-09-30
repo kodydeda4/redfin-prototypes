@@ -2,8 +2,6 @@
 
 This is a web-app that allows me to explore ui layouts and ideas for the native app.
 
-**Stack:** Next.js (App Router) · TypeScript · Tailwind v4 · shadcn/ui (all components, Base UI) · next-themes · three.js via @react-three/fiber + drei
-
 ```bash
 npm run dev
 ```
