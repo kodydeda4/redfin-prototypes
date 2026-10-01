@@ -2,6 +2,9 @@
 
 This is a web-app that allows me to explore ui layouts and ideas for the native [Redfin music player app](https://github.com/kodydeda4/redfin).
 
+You can view the live webapp here:
+https://redfin-prototypes.vercel.app
+
 ```bash
 npm run dev
 ```
