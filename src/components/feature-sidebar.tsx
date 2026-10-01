@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { PanelLeftCloseIcon, PanelLeftOpenIcon, SearchIcon } from "lucide-react"
 
-import { FEATURES_KEY, SIDEBARS_SHORTCUT, useSidebarOpen } from "@/components/sidebars"
+import { FEATURES_KEY, FOCUS_FEATURE_SEARCH, SIDEBARS_SHORTCUT, useSidebarOpen } from "@/components/sidebars"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Kbd } from "@/components/ui/kbd"
 import { CategoryIcon, search, statusStyles, type Result } from "@/components/workbench-ui"
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 
 // The workbench's collapsible left-hand "Features" sidebar (mirroring Preview State on the right):
 // every section as a heading with its features under it, each feature's versions beneath it, and a
-// search that narrows them all. ⌘K opens it and focuses the search.
+// search that narrows them all. ⌘K shows or hides it (focusing the search when it opens).
 
 export function FeatureSidebar({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
   const [isOpen, setOpen] = useSidebarOpen(FEATURES_KEY)
@@ -20,18 +20,12 @@ export function FeatureSidebar({ path, onNavigate }: { path: string; onNavigate:
   const input = useRef<HTMLInputElement>(null)
   const current = locate(path).variant
 
-  // ⌘K / Ctrl+K: open the sidebar and jump to its search.
+  // ⌘K opened the sidebar (see `useSidebarsShortcut`): put the cursor in the search once it renders.
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "k" || !(e.metaKey || e.ctrlKey)) return
-      e.preventDefault()
-      setOpen(true)
-      // After it renders, if it was closed.
-      requestAnimationFrame(() => input.current?.focus())
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  })
+    const focus = () => requestAnimationFrame(() => input.current?.focus())
+    window.addEventListener(FOCUS_FEATURE_SEARCH, focus)
+    return () => window.removeEventListener(FOCUS_FEATURE_SEARCH, focus)
+  }, [])
 
   if (!isOpen) return null
 
@@ -58,7 +52,7 @@ export function FeatureSidebar({ path, onNavigate }: { path: string; onNavigate:
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Hide Features"
-          title={`Hide Features (${SIDEBARS_SHORTCUT})`}
+          title={`Hide Features (⌘K)`}
           className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <PanelLeftCloseIcon className="size-5" />
@@ -181,7 +175,7 @@ export function FeatureSidebarToggle({ className }: { className?: string }) {
       type="button"
       onClick={() => setOpen(true)}
       aria-label="Show Features"
-      title={`Show Features (${SIDEBARS_SHORTCUT})`}
+      title={`Show Features (⌘K)`}
       className={cn("justify-center transition-colors hover:bg-muted", className)}
     >
       <PanelLeftOpenIcon className="size-5" />

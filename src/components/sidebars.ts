@@ -12,6 +12,9 @@ export const PREVIEW_STATE_KEY = "redfin:preview-state-open"
 
 export const SIDEBARS_SHORTCUT = "|"
 
+/** Sent to the workbench window after ⌘K opens Features, so it can put the cursor in the search. */
+export const FOCUS_FEATURE_SEARCH = "redfin:focus-feature-search"
+
 /** Whether a sidebar is open (both start open), and a setter. */
 export function useSidebarOpen(key: string): [boolean, (open: boolean) => void] {
   return [useStored<boolean>(key) ?? true, (open) => writeStored(key, open)]
@@ -26,14 +29,28 @@ function isOpen(key: string) {
 }
 
 /**
- * `|` hides both sidebars if either is open, and shows both if neither is. Used by the workbench and by
- * each device frame, so it works wherever focus is — a frame writes the shared stored flags, and the
- * workbench hears about it. Ignored while typing in a field, and with ⌘ / Ctrl / ⌥ held.
+ * The sidebars' keyboard shortcuts, used by the workbench and by each device frame so they work
+ * wherever focus is (a frame writes the shared stored flags, and the workbench hears about it):
+ *
+ * - `|` hides both sidebars if either is open, and shows both if neither is. Ignored while typing in a
+ *   field, and with ⌘ / Ctrl / ⌥ held.
+ * - ⌘K / Ctrl+K shows or hides Features — even from a field — and showing it focuses its search.
  */
 export function useSidebarsShortcut() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== SIDEBARS_SHORTCUT || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return
+      if (e.repeat) return
+
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+        e.preventDefault()
+        const show = !isOpen(FEATURES_KEY)
+        writeStored(FEATURES_KEY, show)
+        // The sidebar lives in the workbench window, even when the key was pressed inside a device.
+        if (show) window.top?.dispatchEvent(new Event(FOCUS_FEATURE_SEARCH))
+        return
+      }
+
+      if (e.key !== SIDEBARS_SHORTCUT || e.metaKey || e.ctrlKey || e.altKey) return
       const target = e.target
       if (
         target instanceof HTMLElement &&
